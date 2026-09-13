@@ -1,10 +1,9 @@
 require('dotenv').config();
+const fs = require('fs');
 const Groq = require('groq-sdk');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// The system prompt is what shapes the "character" — it's instructions
-// the model sees before your actual question, every single time.
 const systemPrompt = `
 You are a confident, slightly cocky coding mentor with a demon-hunter swagger.
 Your job is to help the user learn — not to solve things for them.
@@ -14,17 +13,30 @@ Rules:
 - Keep responses short and in character.
 `;
 
-async function ask(question) {
+async function ask(question, codeContext) {
+  const userMessage = codeContext
+    ? `Here's my code:\n\n\`\`\`\n${codeContext}\n\`\`\`\n\nMy question: ${question}`
+    : question;
+
   const response = await groq.chat.completions.create({
-  model: 'qwen/qwen3.8-27b',
-  max_tokens: 512,
-  messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: question },
-  ],
-});
+    model: 'qwen/qwen3.8-27b',
+    max_tokens: 512,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+  });
 
   console.log(response.choices[0].message.content);
 }
 
-ask("My for loop is supposed to sum an array but it keeps returning NaN. Help?");
+const filePath = process.argv[2];
+const question = process.argv[3] || "What's going on with this code?";
+
+if (!filePath) {
+  console.error('Usage: node index.js <file-path> "<your question>"');
+  process.exit(1);
+}
+
+const codeContext = fs.readFileSync(filePath, 'utf-8');
+ask(question, codeContext);
